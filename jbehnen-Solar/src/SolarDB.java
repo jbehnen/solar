@@ -37,6 +37,54 @@ public class SolarDB {
 
 		System.out.println("Connected to database");
 	}
+	
+	public boolean checkUser(String username, String password, boolean isPlayer) {
+		String sql;
+		if (isPlayer) {
+			sql = "SELECT * FROM jbehnen.PlayerAccount WHERE playerUsername = ? AND playerPassword = ?;";
+		} else {
+			sql = "SELECT * FROM jbehnen.PublisherAccount WHERE publisherName = ? AND publisherPassword = ?;";
+		}
+		
+		PreparedStatement preparedStatement = null;
+		try {
+			preparedStatement = conn.prepareStatement(sql);
+			preparedStatement.setString(1, username);
+			preparedStatement.setString(2, password);
+			ResultSet rs = preparedStatement.executeQuery();
+			return rs.next();
+		} catch (SQLException e) {
+			System.out.println(e);
+			e.printStackTrace();
+		}
+		return false;
+	}
+	
+	public boolean addUser(String username, String password, String email, boolean isPlayer) {
+		String sql;
+		boolean success = true;
+		 if (isPlayer) {
+			 sql = "insert into jbehnen.PlayerAccount values (?, ?, ?); ";
+		 } else {
+			// Insert subquery from http://stackoverflow.com/questions/10644149/insert-into-with-subquery-mysql
+			sql = "insert into jbehnen.PublisherAccount"
+					+ " SELECT nextId, ? as publisherName, ? as publisherEmail, ? as publisherPasswword"
+					+ " FROM (SELECT MAX(publisherId) + 1 'nextId' FROM jbehnen.PublisherAccount) MaximumId; ";
+		 }
+		 PreparedStatement preparedStatement = null;
+		 try {
+			preparedStatement = conn.prepareStatement(sql);
+			preparedStatement.setString(1, username);
+			preparedStatement.setString(2, email);
+			preparedStatement.setString(3, password);
+			preparedStatement.executeUpdate();
+		} catch (SQLException e) {
+			System.out.println(e);
+			e.printStackTrace();
+			success = false;
+		}
+		return success;
+	}
 
 	/**
 	 * Returns a list of movie objects from the database.
@@ -73,6 +121,39 @@ public class SolarDB {
 			if (stmt != null) {
 				stmt.close();
 			}
+		}
+		return gameList;
+	}
+	
+	public List<Game> getOwnedGames(String username) {
+		String sql = "select gameId, gameTitle, gameDescription, gamePrice, genreId, "
+				+ "gameplayTypeId, publisherId from jbehnen.Game where gameId in "
+				+ "(SELECT gameId FROM jbehnen.PlayerOwnsGame WHERE playerUsername = ?);";
+
+		gameList = new ArrayList<Game>();
+		try {
+			if (conn == null) {
+				createConnection();
+			}
+			PreparedStatement preparedStatement = null;
+			preparedStatement = conn.prepareStatement(sql);
+			preparedStatement.setString(1, username);
+			ResultSet rs = preparedStatement.executeQuery();
+			while (rs.next()) {
+				int id = rs.getInt("gameId");
+				String title = rs.getString("gameTitle");
+				String description = rs.getString("gameDescription");
+				BigDecimal gamePrice = rs.getBigDecimal("gamePrice");
+				int genreId = rs.getInt("genreId");
+				int gameplayTypeId = rs.getInt("gameplayTypeId");
+				int publisherId = rs.getInt("genreId");
+				Game game = new Game(id, title, description, gamePrice, genreId,
+						gameplayTypeId, publisherId);
+				gameList.add(game);
+			}
+		} catch (SQLException e) {
+			System.out.println(e);
+			e.printStackTrace();
 		}
 		return gameList;
 	}
@@ -119,6 +200,7 @@ public class SolarDB {
 	}
 	
 	private List<String> getIdDescriptorList(String table, String idName, String descriptorName) throws SQLException {
+		// TODO bind using parameters
 		if (conn == null) {
 			createConnection();
 		}
@@ -177,7 +259,6 @@ public class SolarDB {
 		Game game = gameList.get(row);
 		int gameId = game.getId();
 		String sql = "update jbehnen.Game set " + columnName + " = ?  where gameId = ? ";
-		System.out.println(sql);
 		PreparedStatement preparedStatement = null;
 		try {
 			preparedStatement = conn.prepareStatement(sql);
