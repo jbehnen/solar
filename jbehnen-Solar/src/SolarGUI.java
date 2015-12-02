@@ -4,6 +4,8 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.math.BigDecimal;
 import java.sql.SQLException;
+import java.text.Format;
+import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.List;
 import javax.swing.*;
@@ -22,7 +24,11 @@ public class SolarGUI extends JFrame implements ActionListener //, TableModelLis
 {
 	
 	private static final long serialVersionUID = 1779520078061383929L;
-	private JButton btnMyGames, btnList, btnSearch, btnAdd;
+	
+	private static final Format integerFormat = NumberFormat.getIntegerInstance();
+	private static final Format currencyFormat = NumberFormat.getCurrencyInstance();
+	
+	private JButton btnMyGames, btnAllGames, btnSearch, btnAdd;
 	private JPanel pnlLogin, pnlButtons, pnlMyGames, pnlAllGames, pnlContent;
 	private SolarDB db;
 	private List<Game> personalGameList, generalGameList;
@@ -57,6 +63,10 @@ public class SolarGUI extends JFrame implements ActionListener //, TableModelLis
 	private JTextField txtMyGamesGameId;
 	private JButton btnMyGamesView, btnMyGamesRate, btnMyGamesPlay;
 	
+	private JPanel pnlAllGamesBtns;
+	private JTextField txtAllGamesGameId;
+	private JButton btnAllGamesView, btnAllGamesBuy;
+	
 	private JPanel pnlAdd;
 	private JLabel[] txfLabel = new JLabel[7];
 	private JTextField[] txfField = new JTextField[7];
@@ -88,7 +98,14 @@ public class SolarGUI extends JFrame implements ActionListener //, TableModelLis
 		{
 			e.printStackTrace();
 		}
-		logIn();
+		
+		// TODO revert
+		// logIn();
+		
+		username = "user";
+		isPlayer = true;
+		createComponents();
+		
 		setVisible(true);
 		setSize(500, 500);
 	}
@@ -148,27 +165,31 @@ public class SolarGUI extends JFrame implements ActionListener //, TableModelLis
 	private void createPlayerComponents() {
 		pnlButtons = new JPanel();
 		
-		btnList = new JButton("Game List");
-		btnList.addActionListener(this);
-		
 		btnMyGames = new JButton("My Games");
 		btnMyGames.addActionListener(this);
+		
+		btnAllGames = new JButton("Game List");
+		btnAllGames.addActionListener(this);
 		
 		btnSearch = new JButton("Game Search");
 		btnSearch.addActionListener(this);
 		
-		pnlButtons.add(btnList);
 		pnlButtons.add(btnMyGames);
+		pnlButtons.add(btnAllGames);
 		pnlButtons.add(btnSearch);
 		add(pnlButtons, BorderLayout.NORTH);
 		
 		//My Games Panel
 		pnlMyGamesBtns = new JPanel();
 		JLabel lblMyGamesGameId = new JLabel("Game ID: ");
-		txtMyGamesGameId = new JTextField();
+		txtMyGamesGameId = new JFormattedTextField(integerFormat);
+		txtMyGamesGameId.setColumns(10);
 		btnMyGamesPlay = new JButton("Play");
+		btnMyGamesPlay.addActionListener(this);
 		btnMyGamesView = new JButton("View");
+		btnMyGamesView.addActionListener(this);
 		btnMyGamesRate = new JButton("Rate: ");
+		btnMyGamesRate.addActionListener(this);
 		
 		pnlMyGamesBtns.add(lblMyGamesGameId);
 		pnlMyGamesBtns.add(txtMyGamesGameId);
@@ -179,6 +200,20 @@ public class SolarGUI extends JFrame implements ActionListener //, TableModelLis
 		generateMyGamesPanel();
 		
 		//All Games Panel
+		pnlAllGamesBtns = new JPanel();
+		JLabel lblAllGamesGameId = new JLabel("Game ID: ");
+		txtAllGamesGameId = new JFormattedTextField(integerFormat);
+		txtAllGamesGameId.setColumns(10);
+		btnAllGamesView = new JButton("View");
+		btnAllGamesView.addActionListener(this);
+		btnAllGamesBuy = new JButton("Buy");
+		btnAllGamesBuy.addActionListener(this);
+		
+		pnlAllGamesBtns.add(lblAllGamesGameId);
+		pnlAllGamesBtns.add(txtAllGamesGameId);
+		pnlAllGamesBtns.add(btnAllGamesView);
+		pnlAllGamesBtns.add(btnAllGamesBuy);
+		
 		generateAllGamesPanel();
 		
 		//Search Panel
@@ -194,7 +229,11 @@ public class SolarGUI extends JFrame implements ActionListener //, TableModelLis
 		pnlContent = new JPanel();
 		pnlContent.add(pnlAllGames);
 		add(pnlContent, BorderLayout.CENTER);
-		remove(pnlLogin);
+		
+		if (pnlLogin != null) {
+			remove(pnlLogin);
+		}
+		
 		validate();
 		repaint();
 	}
@@ -260,8 +299,25 @@ public class SolarGUI extends JFrame implements ActionListener //, TableModelLis
 			pnlContent.add(pnlMyGames);
 			pnlContent.revalidate();
 			this.repaint();
+		} else if (e.getSource() == btnMyGamesPlay) {
+			int gameId = getIntFromTextField(txtMyGamesGameId);
+			if (gameId != -1) {
+				Game ownedGame = ownedGame(gameId);
+				if (ownedGame == null) {
+					JOptionPane.showMessageDialog(null, 
+							"You do not own this game. If you believe this "
+							+ "is incorrect, please refresh the screen and try again.");
+				} else {
+					JOptionPane.showMessageDialog(null, 
+							"If this was a real system, you would be playing "
+							+ ownedGame.getTitle() + " right now.");
+				}
+			}
+		} else if (e.getSource() == btnMyGamesView) {
 			
-		} else if (e.getSource() == btnList) {
+		} else if (e.getSource() == btnMyGamesRate) {
+			
+		} else if (e.getSource() == btnAllGames) {
 			try {
 				generalGameList = db.getGames();
 			} catch (SQLException e1) {
@@ -274,7 +330,25 @@ public class SolarGUI extends JFrame implements ActionListener //, TableModelLis
 			pnlContent.add(pnlAllGames);
 			pnlContent.revalidate();
 			this.repaint();
+		} else if (e.getSource() == btnAllGamesView) {
 			
+		} else if (e.getSource() == btnAllGamesBuy) {
+			int gameId = getIntFromTextField(txtAllGamesGameId);
+			if (gameId != -1) {
+				Game game = db.getGame(gameId);
+				if (game == null) {
+					JOptionPane.showMessageDialog(null, "Game does not exist.");
+				} else {
+					// TODO prompt for confirmation
+					boolean success = db.buyGame(username, game);
+					if (success) {
+						JOptionPane.showMessageDialog(null, "Purchase successful.");
+					} else {
+						JOptionPane.showMessageDialog(null, "Purchase failed. You "
+								+ "may already own this game.");
+					}
+				}
+			}
 		} else if (e.getSource() == btnSearch) {
 			pnlContent.removeAll();
 			pnlContent.add(pnlSearch);
@@ -285,7 +359,6 @@ public class SolarGUI extends JFrame implements ActionListener //, TableModelLis
 			pnlContent.add(pnlAdd);
 			pnlContent.revalidate();
 			this.repaint();
-			
 		} else if (e.getSource() == btnTitleSearch) {
 			String title = txfTitle.getText();
 			if (title.length() > 0) {
@@ -380,12 +453,37 @@ public class SolarGUI extends JFrame implements ActionListener //, TableModelLis
 	}
 	
 	private void generateAllGamesPanel() {
-		pnlAllGames = new JPanel();
+		pnlAllGames = new JPanel(new BorderLayout());
+		
+		pnlAllGames.add(pnlAllGamesBtns, BorderLayout.NORTH);
+		
 		generalGameTable = new JTable(generalGameData, columnNames);
 		generalDataScrollPane = new JScrollPane(generalGameTable);
-		pnlAllGames.add(generalDataScrollPane);
 		generalGameTable.setEnabled(false);
 		generalGameTable.setAutoCreateRowSorter(true);
+		pnlAllGames.add(generalDataScrollPane, BorderLayout.CENTER);
+	}
+	
+	private Game ownedGame(int gameId) {
+		if (gameId == -1) return null;
+		Game ownedGame = null;
+		for (Game game: personalGameList) {
+			if (game.getId() == gameId) {
+				ownedGame = game;
+				break;
+			}
+		}
+		return ownedGame;
+	}
+	
+	private int getIntFromTextField(JTextField textField) {
+		int value = -1;
+		try {
+			value = Integer.parseInt(textField.getText());
+		} catch (NumberFormatException e) {
+			JOptionPane.showMessageDialog(null, "Please enter a number");
+		}
+		return value;
 	}
 
 }

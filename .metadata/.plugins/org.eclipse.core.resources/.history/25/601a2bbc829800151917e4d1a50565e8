@@ -1,0 +1,428 @@
+import java.awt.BorderLayout;
+import java.awt.GridLayout;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.math.BigDecimal;
+import java.sql.SQLException;
+import java.text.Format;
+import java.text.NumberFormat;
+import java.util.ArrayList;
+import java.util.List;
+import javax.swing.*;
+import javax.swing.event.TableModelEvent;
+import javax.swing.event.TableModelListener;
+import javax.swing.table.TableModel;
+
+/**
+ * A user interface to view the movies, add a new movie and to update an existing movie.
+ * The list is a table with all the movie information in it. The TableModelListener listens to
+ * any changes to the cells to modify the values for reach movie.
+ * @author mmuppa
+ *
+ */
+public class SolarGUI extends JFrame implements ActionListener //, TableModelListener
+{
+	
+	private static final long serialVersionUID = 1779520078061383929L;
+	
+	private static final Format integerFormat = NumberFormat.getIntegerInstance();
+	private static final Format currencyFormat = NumberFormat.getCurrencyInstance();
+	
+	private JButton btnMyGames, btnList, btnSearch, btnAdd;
+	private JPanel pnlLogin, pnlButtons, pnlMyGames, pnlAllGames, pnlContent;
+	private SolarDB db;
+	private List<Game> personalGameList, generalGameList;
+	private List<String> genreList;
+	private List<String> gameplayTypeList;
+	private List<String> osList;
+	private List<String> playerGroupingList;
+	private List<String> publisherNameList;
+	private String[] columnNames = {
+			"ID",
+			"Title",
+            "Price",
+            "Genre",
+            "Gameplay Type",
+            "Publisher"};
+	
+	private Object[][] personalGameData, generalGameData;
+	private JTable personalGameTable, generalGameTable;
+	private JScrollPane personalDataScrollPane, generalDataScrollPane;
+	private JPanel pnlSearch;
+	private JLabel lblTitle;;
+	private JTextField txfTitle;
+	private JButton btnTitleSearch;
+	
+	private JLabel[] loginLabel = new JLabel[3];
+	private JTextField[] loginField = new JTextField[3];
+	List<JRadioButton> loginRadioButtons;
+	private JButton btnLogin;
+	private JButton btnRegister;
+	
+	private JPanel pnlMyGamesBtns;
+	private JTextField txtMyGamesGameId;
+	private JButton btnMyGamesView, btnMyGamesRate, btnMyGamesPlay;
+	
+	private JPanel pnlAllGamesBtns;
+	private JTextField txtAllGamesGameId;
+	private JButton btnAllGamesView, btnAllGamesBuy;
+	
+	private JPanel pnlAdd;
+	private JLabel[] txfLabel = new JLabel[7];
+	private JTextField[] txfField = new JTextField[7];
+	
+	private JButton btnAddMovie;
+
+	private String username;
+	private boolean isPlayer;
+	
+	/**
+	 * Creates the frame and components and launches the GUI.
+	 */
+	public SolarGUI() {
+		super("Movie Store");
+		
+		db = new SolarDB();
+		try
+		{
+			generalGameList = db.getGames();
+			genreList = db.getGenres();
+			gameplayTypeList = db.getGameplayTypes();
+			osList = db.getOperatingSystems();
+			playerGroupingList = db.getPlayerGroupingTypes();
+			publisherNameList = db.getPublisherNames();
+			
+			fillGameGrid(generalGameList, false);
+			
+		} catch (SQLException e)
+		{
+			e.printStackTrace();
+		}
+		
+		// TODO revert
+		// logIn();
+		
+		username = "user";
+		isPlayer = true;
+		createComponents();
+		
+		setVisible(true);
+		setSize(500, 500);
+	}
+	
+	private void logIn() {
+		pnlLogin = new JPanel();
+		pnlLogin.setLayout(new BoxLayout(pnlLogin, BoxLayout.PAGE_AXIS));
+		
+		String labelNames[] = {"Username: ", "Password: ", "Email (registration only): "};
+		for (int i=0; i<labelNames.length; i++) {
+			JPanel panel = new JPanel();
+			loginLabel[i] = new JLabel(labelNames[i]);
+			loginField[i] = new JTextField(25);
+			panel.add(loginLabel[i]);
+			panel.add(loginField[i]);
+			pnlLogin.add(panel);
+		}
+		
+		JPanel loginTypePanel = new JPanel();
+		
+		ButtonGroup loginTypeChoice = new ButtonGroup();
+		loginRadioButtons = new ArrayList<JRadioButton>();
+		loginRadioButtons.add(new JRadioButton ("Player"));
+		loginRadioButtons.add(new JRadioButton ("Publisher"));
+		for (JRadioButton button : loginRadioButtons) {
+			loginTypeChoice.add(button);
+			loginTypePanel.add(button);
+		}
+		loginRadioButtons.get(0).setSelected(true);
+		pnlLogin.add(loginTypePanel);
+		
+		JPanel loginButtonPanel = new JPanel();
+		btnLogin = new JButton("Log in");
+		btnRegister = new JButton("Register");
+		btnLogin.addActionListener(this);
+		btnRegister.addActionListener(this);
+		loginButtonPanel.add(btnLogin);
+		loginButtonPanel.add(btnRegister);
+		pnlLogin.add(loginButtonPanel);
+		
+		add(pnlLogin, BorderLayout.CENTER);
+	}
+    
+	/**
+	 * Creates panels for Movie list, search, add and adds the corresponding 
+	 * components to each panel.
+	 */
+	private void createComponents() {
+		initializePersonalGameList(isPlayer);
+		if (isPlayer) {
+			createPlayerComponents();
+		} else {
+			createPublisherComponents();
+		}
+	}
+	
+	private void createPlayerComponents() {
+		pnlButtons = new JPanel();
+		
+		btnMyGames = new JButton("My Games");
+		btnMyGames.addActionListener(this);
+		
+		btnList = new JButton("Game List");
+		btnList.addActionListener(this);
+		
+		btnSearch = new JButton("Game Search");
+		btnSearch.addActionListener(this);
+		
+		pnlButtons.add(btnMyGames);
+		pnlButtons.add(btnList);
+		pnlButtons.add(btnSearch);
+		add(pnlButtons, BorderLayout.NORTH);
+		
+		//My Games Panel
+		pnlMyGamesBtns = new JPanel();
+		JLabel lblMyGamesGameId = new JLabel("Game ID: ");
+		txtMyGamesGameId = new JFormattedTextField(integerFormat);
+		txtMyGamesGameId.setColumns(10);
+		btnMyGamesPlay = new JButton("Play");
+		btnMyGamesView = new JButton("View");
+		btnMyGamesRate = new JButton("Rate: ");
+		
+		pnlMyGamesBtns.add(lblMyGamesGameId);
+		pnlMyGamesBtns.add(txtMyGamesGameId);
+		pnlMyGamesBtns.add(btnMyGamesPlay);
+		pnlMyGamesBtns.add(btnMyGamesView);
+		pnlMyGamesBtns.add(btnMyGamesRate);
+		
+		generateMyGamesPanel();
+		
+		//All Games Panel
+		pnlAllGamesBtns = new JPanel();
+		JLabel lblAllGamesGameId = new JLabel("Game ID: ");
+		txtAllGamesGameId = new JFormattedTextField(integerFormat);
+		txtAllGamesGameId.setColumns(10);
+		btnAllGamesView = new JButton("View");
+		btnAllGamesBuy = new JButton("Buy");
+		
+		pnlAllGamesBtns.add(lblAllGamesGameId);
+		pnlAllGamesBtns.add(txtAllGamesGameId);
+		pnlAllGamesBtns.add(btnAllGamesView);
+		pnlAllGamesBtns.add(btnAllGamesBuy);
+		
+		generateAllGamesPanel();
+		
+		//Search Panel
+		pnlSearch = new JPanel();
+		lblTitle = new JLabel("Enter Title: ");
+		txfTitle = new JTextField(25);
+		btnTitleSearch = new JButton("Search");
+		btnTitleSearch.addActionListener(this);
+		pnlSearch.add(lblTitle);
+		pnlSearch.add(txfTitle);
+		pnlSearch.add(btnTitleSearch);
+		
+		pnlContent = new JPanel();
+		pnlContent.add(pnlAllGames);
+		add(pnlContent, BorderLayout.CENTER);
+		
+		if (pnlLogin != null) {
+			remove(pnlLogin);
+		}
+		
+		validate();
+		repaint();
+	}
+	
+	private void createPublisherComponents() {	
+		pnlButtons = new JPanel();
+		
+		btnAdd = new JButton("Add Movie");
+		btnAdd.addActionListener(this);
+		
+		pnlButtons.add(btnAdd);
+		add(pnlButtons, BorderLayout.NORTH);
+		
+		//Add Panel
+		pnlAdd = new JPanel();
+		pnlAdd.setLayout(new GridLayout(6, 0));
+		String labelNames[] = {"Enter Title: ", "Enter Year: ", "Enter Length: ", "Enter Genre: ", "Enter Studio Name: "};
+		for (int i=0; i<labelNames.length; i++) {
+			JPanel panel = new JPanel();
+			txfLabel[i] = new JLabel(labelNames[i]);
+			txfField[i] = new JTextField(25);
+			panel.add(txfLabel[i]);
+			panel.add(txfField[i]);
+			pnlAdd.add(panel);
+		}
+		JPanel panel = new JPanel();
+		btnAddMovie = new JButton("Add");
+		btnAddMovie.addActionListener(this);
+		panel.add(btnAddMovie);
+		pnlAdd.add(panel);
+		
+		add(pnlAdd, BorderLayout.CENTER);
+		remove(pnlLogin);
+		validate();
+		repaint();
+	}
+
+	/**
+	 * @param args
+	 */
+	public static void main(String[] args)
+	{
+		SolarGUI movieGUI = new SolarGUI();
+		movieGUI.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+
+	}
+
+	/**
+	 * Event handling to change the panels when different tabs are clicked,
+	 * add and search buttons are clicked on the corresponding add and search panels.
+	 */
+	@Override
+	public void actionPerformed(ActionEvent e) {
+		if (e.getSource() == btnLogin) {
+			loginOrRegister(true);
+		} else if (e.getSource() == btnRegister) {
+			loginOrRegister(false);
+		} else if (e.getSource() == btnMyGames) {
+			personalGameList = db.getOwnedGames(username);
+			fillGameGrid(personalGameList, true);
+			pnlContent.removeAll();
+			generateMyGamesPanel();
+			pnlContent.add(pnlMyGames);
+			pnlContent.revalidate();
+			this.repaint();
+			
+		} else if (e.getSource() == btnList) {
+			try {
+				generalGameList = db.getGames();
+			} catch (SQLException e1) {
+				// TODO Auto-generated catch block
+				e1.printStackTrace();
+			}
+			fillGameGrid(generalGameList, false);
+			pnlContent.removeAll();
+			generateAllGamesPanel();
+			pnlContent.add(pnlAllGames);
+			pnlContent.revalidate();
+			this.repaint();
+			
+		} else if (e.getSource() == btnSearch) {
+			pnlContent.removeAll();
+			pnlContent.add(pnlSearch);
+			pnlContent.revalidate();
+			this.repaint();
+		} else if (e.getSource() == btnAdd) {
+			pnlContent.removeAll();
+			pnlContent.add(pnlAdd);
+			pnlContent.revalidate();
+			this.repaint();
+			
+		} else if (e.getSource() == btnTitleSearch) {
+			String title = txfTitle.getText();
+			if (title.length() > 0) {
+				generalGameList = db.getGames(title);
+				fillGameGrid(generalGameList, false);
+				pnlContent.removeAll();
+				generalGameTable = new JTable(generalGameData, columnNames);
+//				generalGameTable.getModel().addTableModelListener(this);
+				generalDataScrollPane = new JScrollPane(generalGameTable);
+				pnlContent.add(generalDataScrollPane);
+				pnlContent.revalidate();
+				this.repaint();
+			}
+		} else if (e.getSource() == btnAddMovie) {
+			// TODO: check for safe BigDecimal
+			Game game = new Game(Integer.parseInt(txfField[0].getText()), txfField[1].getText(),
+					txfField[2].getText(), new BigDecimal(txfField[3].getText()), 
+					Integer.parseInt(txfField[4].getText()),
+					Integer.parseInt(txfField[5].getText()), 
+					Integer.parseInt(txfField[6].getText()));
+			db.addGame(game);
+			JOptionPane.showMessageDialog(null, "Added Successfully!");
+			for (int i=0; i<txfField.length; i++) {
+				txfField[i].setText("");
+			}
+		}
+		
+	}
+	
+	private void fillGameGrid(List<Game> gameList, boolean isPersonal) {
+		Object[][] data = new Object[gameList.size()][columnNames.length];
+		for (int i=0; i<gameList.size(); i++) {
+			data[i][0] = gameList.get(i).getId();
+			data[i][1] = gameList.get(i).getTitle();
+			data[i][2] = gameList.get(i).getPrice();
+			data[i][3] = genreList.get(gameList.get(i).getGenreId());
+			data[i][4] = gameplayTypeList.get(gameList.get(i).getGameplayTypeId());
+			data[i][5] = publisherNameList.get(gameList.get(i).getPublisherId());
+		}
+		if (isPersonal) {
+			personalGameData = data;
+		} else {
+			generalGameData = data;
+		}
+	}
+	
+	private void loginOrRegister(boolean isLogin) {
+		// TODO reorder
+		for (JRadioButton button: loginRadioButtons) {
+			if (button.isSelected()) {
+				isPlayer = button.getText().equals("Player");
+			}
+		}
+		username = loginField[0].getText();
+		String password = Helper.encryptString(loginField[1].getText());
+		String email = loginField[2].getText();
+		boolean success;
+		if (isLogin) {
+			success = db.checkUser(username, password, isPlayer);
+		} else {
+			success = db.addUser(username, password, email, isPlayer);
+		}
+		if (success) {
+			createComponents();
+		} else {
+			String action = isLogin ? "Login" : "Registration";
+			JOptionPane.showMessageDialog(this, action + " failed.");
+		}
+	}
+	
+	private void initializePersonalGameList(boolean isPlayer) {
+		List<Game> list;
+		if (isPlayer) {
+			list = db.getOwnedGames(username);
+		} else {
+			// TODO
+			list = null;
+		}
+		fillGameGrid(list, true);
+	}
+	
+	private void generateMyGamesPanel() {
+		pnlMyGames = new JPanel(new BorderLayout());
+		
+		pnlMyGames.add(pnlMyGamesBtns, BorderLayout.NORTH);
+		
+		personalGameTable = new JTable(personalGameData, columnNames);
+		personalDataScrollPane = new JScrollPane(personalGameTable);
+		personalGameTable.setEnabled(false);
+		personalGameTable.setAutoCreateRowSorter(true);
+		pnlMyGames.add(personalDataScrollPane, BorderLayout.CENTER);
+	}
+	
+	private void generateAllGamesPanel() {
+		pnlAllGames = new JPanel(new BorderLayout());
+		
+		pnlAllGames.add(pnlAllGamesBtns, BorderLayout.NORTH);
+		
+		generalGameTable = new JTable(generalGameData, columnNames);
+		generalDataScrollPane = new JScrollPane(generalGameTable);
+		generalGameTable.setEnabled(false);
+		generalGameTable.setAutoCreateRowSorter(true);
+		pnlAllGames.add(generalDataScrollPane, BorderLayout.CENTER);
+	}
+
+}

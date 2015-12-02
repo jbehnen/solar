@@ -1,11 +1,15 @@
 import java.math.BigDecimal;
 import java.sql.Connection;
+import java.sql.Date;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.sql.Timestamp;
 import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.GregorianCalendar;
 import java.util.List;
 import java.util.Properties;
 
@@ -84,6 +88,37 @@ public class SolarDB {
 			success = false;
 		}
 		return success;
+	}
+	
+	public Game getGame(int gameId) {
+		String sql = "select gameId, gameTitle, gameDescription, gamePrice, genreId, "
+				+ "gameplayTypeId, publisherId from jbehnen.Game where gameId = ?";
+
+		Game game = null;
+		try {
+			if (conn == null) {
+				createConnection();
+			}
+			PreparedStatement preparedStatement = null;
+			preparedStatement = conn.prepareStatement(sql);
+			preparedStatement.setInt(1, gameId);
+			ResultSet rs = preparedStatement.executeQuery();
+			if (rs.next()) {
+				int id = rs.getInt("gameId");
+				String title = rs.getString("gameTitle");
+				String description = rs.getString("gameDescription");
+				BigDecimal gamePrice = rs.getBigDecimal("gamePrice");
+				int genreId = rs.getInt("genreId");
+				int gameplayTypeId = rs.getInt("gameplayTypeId");
+				int publisherId = rs.getInt("genreId");
+				game = new Game(id, title, description, gamePrice, genreId,
+						gameplayTypeId, publisherId);
+			}
+		} catch (SQLException e) {
+			System.out.println(e);
+			e.printStackTrace();
+		}
+		return game;
 	}
 
 	/**
@@ -200,7 +235,6 @@ public class SolarDB {
 	}
 	
 	private List<String> getIdDescriptorList(String table, String idName, String descriptorName) throws SQLException {
-		// TODO bind using parameters
 		if (conn == null) {
 			createConnection();
 		}
@@ -255,7 +289,6 @@ public class SolarDB {
 	 * @param data value to supply
 	 */
 	public void updateGame(int row, String columnName, Object data) {
-		
 		Game game = gameList.get(row);
 		int gameId = game.getId();
 		String sql = "update jbehnen.Game set " + columnName + " = ?  where gameId = ? ";
@@ -272,6 +305,28 @@ public class SolarDB {
 			System.out.println(e);
 			e.printStackTrace();
 		} 
-		
 	}
+	
+	public boolean buyGame(String username, Game game) {
+		String sql = "insert into jbehnen.PlayerOwnsGame values (?, ?, ?, ?, ?)";
+		System.out.println(sql);
+
+		boolean success = true;
+		PreparedStatement preparedStatement = null;
+		try {
+			preparedStatement = conn.prepareStatement(sql);
+			preparedStatement.setString(1, username);
+			preparedStatement.setInt(2, game.getId());
+			preparedStatement.setDate(3, new Date(System.currentTimeMillis()));
+			preparedStatement.setBigDecimal(4, game.getPrice());
+			preparedStatement.setBoolean(5, false);
+			preparedStatement.executeUpdate();
+		} catch (SQLException e) {
+			System.out.println(e);
+			e.printStackTrace();
+			success = false;
+		} 
+		return success;
+	}
+	
 }
