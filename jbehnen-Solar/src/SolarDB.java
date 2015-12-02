@@ -309,7 +309,6 @@ public class SolarDB {
 	
 	public boolean buyGame(String username, Game game) {
 		String sql = "insert into jbehnen.PlayerOwnsGame values (?, ?, ?, ?, ?)";
-		System.out.println(sql);
 
 		boolean success = true;
 		PreparedStatement preparedStatement = null;
@@ -327,6 +326,102 @@ public class SolarDB {
 			success = false;
 		} 
 		return success;
+	}
+	
+	public boolean userExists(String username) {
+		String sql = "select playerUsername from jbehnen.PlayerAccount where playerUsername = ?";
+
+		boolean exists = false;
+		PreparedStatement preparedStatement = null;
+		try {
+			preparedStatement = conn.prepareStatement(sql);
+			preparedStatement.setString(1, username);
+			ResultSet rs = preparedStatement.executeQuery();
+			exists = rs.next();
+		} catch (SQLException e) {
+			System.out.println(e);
+			e.printStackTrace();
+		} 
+		return exists;
+	}
+	
+	public boolean addFriend(String username, String friendUsername) {
+		String sql = "insert into jbehnen.Friends values (?, ?)";
+
+		boolean success = true;
+		PreparedStatement preparedStatement = null;
+		try {
+			preparedStatement = conn.prepareStatement(sql);
+			preparedStatement.setString(1, username);
+			preparedStatement.setString(2, friendUsername);
+			preparedStatement.executeUpdate();
+		} catch (SQLException e) {
+			System.out.println(e);
+			e.printStackTrace();
+			success = false;
+		} 
+		return success;
+	}
+	
+	public boolean removeFriend(String username, String friendUsername) {
+		String sql = "delete from jbehnen.Friends where playerUsername = ? AND friendUsername = ?";
+
+		boolean success = true;
+		PreparedStatement preparedStatement = null;
+		try {
+			preparedStatement = conn.prepareStatement(sql);
+			preparedStatement.setString(1, username);
+			preparedStatement.setString(2, friendUsername);
+			preparedStatement.executeUpdate();
+		} catch (SQLException e) {
+			System.out.println(e);
+			e.printStackTrace();
+			success = false;
+		} 
+		return success;
+	}
+	
+	public List<String> getFriends(String username) {
+		String sql = "select friendUsername from jbehnen.Friends where playerUsername = ?";
+		List<String> friends = new ArrayList<>();
+		
+		PreparedStatement preparedStatement = null;
+		try {
+			preparedStatement = conn.prepareStatement(sql);
+			preparedStatement.setString(1, username);
+			ResultSet rs = preparedStatement.executeQuery();
+			while (rs.next()) {
+				friends.add(rs.getString("friendUsername"));
+			}
+		} catch (SQLException e) {
+			System.out.println(e);
+			e.printStackTrace();
+		} 
+		return friends;
+	}
+	
+	public List<Transaction> getPlayerTransactions(String username) {
+		String sql = "select gameId, purchaseDate, purchasePrice, isDeleted"
+				+ " from jbehnen.PlayerOwnsGame where playerUsername = ?";
+		List<Transaction> transactions = new ArrayList<>();
+		
+		PreparedStatement preparedStatement = null;
+		try {
+			preparedStatement = conn.prepareStatement(sql);
+			preparedStatement.setString(1, username);
+			ResultSet rs = preparedStatement.executeQuery();
+			while (rs.next()) {
+				int id = rs.getInt("gameId");
+				Date date = rs.getDate("purchaseDate");
+				BigDecimal price = rs.getBigDecimal("purchasePrice");
+				boolean deleted = rs.getBoolean("isDeleted");
+				transactions.add(new Transaction(username, id, date, price, deleted));
+			}
+		} catch (SQLException e) {
+			System.out.println(e);
+			e.printStackTrace();
+		} 
+		return transactions;
 	}
 	
 }

@@ -9,9 +9,6 @@ import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.List;
 import javax.swing.*;
-import javax.swing.event.TableModelEvent;
-import javax.swing.event.TableModelListener;
-import javax.swing.table.TableModel;
 
 /**
  * A user interface to view the movies, add a new movie and to update an existing movie.
@@ -28,8 +25,8 @@ public class SolarGUI extends JFrame implements ActionListener //, TableModelLis
 	private static final Format integerFormat = NumberFormat.getIntegerInstance();
 	private static final Format currencyFormat = NumberFormat.getCurrencyInstance();
 	
-	private JButton btnMyGames, btnAllGames, btnSearch, btnAdd;
-	private JPanel pnlLogin, pnlButtons, pnlMyGames, pnlAllGames, pnlContent;
+	private JButton btnMyGames, btnAllGames, btnSearch, btnAdd, btnFriends, btnPurchaseHistory, btnSignOut;
+	private JPanel pnlLogin, pnlButtons, pnlContent;
 	private SolarDB db;
 	private List<Game> personalGameList, generalGameList;
 	private List<String> genreList;
@@ -37,17 +34,27 @@ public class SolarGUI extends JFrame implements ActionListener //, TableModelLis
 	private List<String> osList;
 	private List<String> playerGroupingList;
 	private List<String> publisherNameList;
-	private String[] columnNames = {
+	private List<String> friendsList;
+	private String[] gameColumnNames = {
 			"ID",
 			"Title",
             "Price",
             "Genre",
             "Gameplay Type",
             "Publisher"};
+	private String[] friendColumnNames = {
+			"Friend"};
+	private String[] transactionColumnNames = {
+			"Player",
+			"Game ID",
+			"Game Title",
+			"Price",
+			"Date",
+			"Publisher"};
 	
-	private Object[][] personalGameData, generalGameData;
-	private JTable personalGameTable, generalGameTable;
-	private JScrollPane personalDataScrollPane, generalDataScrollPane;
+	private Object[][] data;
+	private JTable table;
+	private JScrollPane scrollPane;
 	private JPanel pnlSearch;
 	private JLabel lblTitle;;
 	private JTextField txfTitle;
@@ -66,6 +73,10 @@ public class SolarGUI extends JFrame implements ActionListener //, TableModelLis
 	private JPanel pnlAllGamesBtns;
 	private JTextField txtAllGamesGameId;
 	private JButton btnAllGamesView, btnAllGamesBuy;
+	
+	private JPanel pnlFriendsBtns;
+	private JTextField txtFriendsName;
+	private JButton btnFriendsAddFriend, btnFriendsRemoveFriend;
 	
 	private JPanel pnlAdd;
 	private JLabel[] txfLabel = new JLabel[7];
@@ -92,7 +103,7 @@ public class SolarGUI extends JFrame implements ActionListener //, TableModelLis
 			playerGroupingList = db.getPlayerGroupingTypes();
 			publisherNameList = db.getPublisherNames();
 			
-			fillGameGrid(generalGameList, false);
+			fillGameGrid(generalGameList);
 			
 		} catch (SQLException e)
 		{
@@ -107,46 +118,49 @@ public class SolarGUI extends JFrame implements ActionListener //, TableModelLis
 		createComponents();
 		
 		setVisible(true);
-		setSize(500, 500);
+		setSize(700, 600);
 	}
 	
 	private void logIn() {
-		pnlLogin = new JPanel();
-		pnlLogin.setLayout(new BoxLayout(pnlLogin, BoxLayout.PAGE_AXIS));
-		
-		String labelNames[] = {"Username: ", "Password: ", "Email (registration only): "};
-		for (int i=0; i<labelNames.length; i++) {
-			JPanel panel = new JPanel();
-			loginLabel[i] = new JLabel(labelNames[i]);
-			loginField[i] = new JTextField(25);
-			panel.add(loginLabel[i]);
-			panel.add(loginField[i]);
-			pnlLogin.add(panel);
+		if (pnlLogin == null) {
+			pnlLogin = new JPanel();
+			
+			String labelNames[] = {"Username: ", "Password: ", "Email (registration only): "};
+			for (int i=0; i<labelNames.length; i++) {
+				JPanel panel = new JPanel();
+				loginLabel[i] = new JLabel(labelNames[i]);
+				loginField[i] = new JTextField(25);
+				panel.add(loginLabel[i]);
+				panel.add(loginField[i]);
+				pnlLogin.add(panel);
+			}
+			
+			JPanel loginTypePanel = new JPanel();
+			
+			ButtonGroup loginTypeChoice = new ButtonGroup();
+			loginRadioButtons = new ArrayList<JRadioButton>();
+			loginRadioButtons.add(new JRadioButton ("Player"));
+			loginRadioButtons.add(new JRadioButton ("Publisher"));
+			for (JRadioButton button : loginRadioButtons) {
+				loginTypeChoice.add(button);
+				loginTypePanel.add(button);
+			}
+			loginRadioButtons.get(0).setSelected(true);
+			pnlLogin.add(loginTypePanel);
+			
+			JPanel loginButtonPanel = new JPanel();
+			btnLogin = new JButton("Log in");
+			btnRegister = new JButton("Register");
+			btnLogin.addActionListener(this);
+			btnRegister.addActionListener(this);
+			loginButtonPanel.add(btnLogin);
+			loginButtonPanel.add(btnRegister);
+			pnlLogin.add(loginButtonPanel);
 		}
-		
-		JPanel loginTypePanel = new JPanel();
-		
-		ButtonGroup loginTypeChoice = new ButtonGroup();
-		loginRadioButtons = new ArrayList<JRadioButton>();
-		loginRadioButtons.add(new JRadioButton ("Player"));
-		loginRadioButtons.add(new JRadioButton ("Publisher"));
-		for (JRadioButton button : loginRadioButtons) {
-			loginTypeChoice.add(button);
-			loginTypePanel.add(button);
-		}
-		loginRadioButtons.get(0).setSelected(true);
-		pnlLogin.add(loginTypePanel);
-		
-		JPanel loginButtonPanel = new JPanel();
-		btnLogin = new JButton("Log in");
-		btnRegister = new JButton("Register");
-		btnLogin.addActionListener(this);
-		btnRegister.addActionListener(this);
-		loginButtonPanel.add(btnLogin);
-		loginButtonPanel.add(btnRegister);
-		pnlLogin.add(loginButtonPanel);
-		
+		getContentPane().removeAll();
 		add(pnlLogin, BorderLayout.CENTER);
+		validate();
+		repaint();
 	}
     
 	/**
@@ -154,7 +168,7 @@ public class SolarGUI extends JFrame implements ActionListener //, TableModelLis
 	 * components to each panel.
 	 */
 	private void createComponents() {
-		initializePersonalGameList(isPlayer);
+		initializePersonalGameList();
 		if (isPlayer) {
 			createPlayerComponents();
 		} else {
@@ -165,19 +179,55 @@ public class SolarGUI extends JFrame implements ActionListener //, TableModelLis
 	private void createPlayerComponents() {
 		pnlButtons = new JPanel();
 		
-		btnMyGames = new JButton("My Games");
-		btnMyGames.addActionListener(this);
-		
 		btnAllGames = new JButton("Game List");
 		btnAllGames.addActionListener(this);
 		
 		btnSearch = new JButton("Game Search");
 		btnSearch.addActionListener(this);
 		
-		pnlButtons.add(btnMyGames);
+		btnMyGames = new JButton("My Games");
+		btnMyGames.addActionListener(this);
+		
+		btnFriends = new JButton("Friends");
+		btnFriends.addActionListener(this);
+		
+		btnPurchaseHistory = new JButton("Purchase History");
+		btnPurchaseHistory.addActionListener(this);
+		
+		btnSignOut = new JButton("Log Out");
+		btnSignOut.addActionListener(this);
+		
 		pnlButtons.add(btnAllGames);
 		pnlButtons.add(btnSearch);
-		add(pnlButtons, BorderLayout.NORTH);
+		pnlButtons.add(btnMyGames);
+		pnlButtons.add(btnFriends);
+		pnlButtons.add(btnPurchaseHistory);
+		pnlButtons.add(btnSignOut);
+
+		//All Games Panel
+		pnlAllGamesBtns = new JPanel();
+		JLabel lblAllGamesGameId = new JLabel("Game ID: ");
+		txtAllGamesGameId = new JFormattedTextField(integerFormat);
+		txtAllGamesGameId.setColumns(10);
+		btnAllGamesView = new JButton("View");
+		btnAllGamesView.addActionListener(this);
+		btnAllGamesBuy = new JButton("Buy");
+		btnAllGamesBuy.addActionListener(this);
+		
+		pnlAllGamesBtns.add(lblAllGamesGameId);
+		pnlAllGamesBtns.add(txtAllGamesGameId);
+		pnlAllGamesBtns.add(btnAllGamesView);
+		pnlAllGamesBtns.add(btnAllGamesBuy);
+		
+		//Search Panel
+		pnlSearch = new JPanel();
+		lblTitle = new JLabel("Enter Title: ");
+		txfTitle = new JTextField(25);
+		btnTitleSearch = new JButton("Search");
+		btnTitleSearch.addActionListener(this);
+		pnlSearch.add(lblTitle);
+		pnlSearch.add(txfTitle);
+		pnlSearch.add(btnTitleSearch);
 		
 		//My Games Panel
 		pnlMyGamesBtns = new JPanel();
@@ -196,43 +246,25 @@ public class SolarGUI extends JFrame implements ActionListener //, TableModelLis
 		pnlMyGamesBtns.add(btnMyGamesPlay);
 		pnlMyGamesBtns.add(btnMyGamesView);
 		pnlMyGamesBtns.add(btnMyGamesRate);
+
+		//Friends Panel
+		pnlFriendsBtns = new JPanel();
+		txtFriendsName = new JTextField(20);
+		btnFriendsAddFriend = new JButton("Add Friend");
+		btnFriendsAddFriend.addActionListener(this);
+		btnFriendsRemoveFriend = new JButton("Remove Friend");
+		btnFriendsRemoveFriend.addActionListener(this);
 		
-		generateMyGamesPanel();
-		
-		//All Games Panel
-		pnlAllGamesBtns = new JPanel();
-		JLabel lblAllGamesGameId = new JLabel("Game ID: ");
-		txtAllGamesGameId = new JFormattedTextField(integerFormat);
-		txtAllGamesGameId.setColumns(10);
-		btnAllGamesView = new JButton("View");
-		btnAllGamesView.addActionListener(this);
-		btnAllGamesBuy = new JButton("Buy");
-		btnAllGamesBuy.addActionListener(this);
-		
-		pnlAllGamesBtns.add(lblAllGamesGameId);
-		pnlAllGamesBtns.add(txtAllGamesGameId);
-		pnlAllGamesBtns.add(btnAllGamesView);
-		pnlAllGamesBtns.add(btnAllGamesBuy);
-		
-		generateAllGamesPanel();
-		
-		//Search Panel
-		pnlSearch = new JPanel();
-		lblTitle = new JLabel("Enter Title: ");
-		txfTitle = new JTextField(25);
-		btnTitleSearch = new JButton("Search");
-		btnTitleSearch.addActionListener(this);
-		pnlSearch.add(lblTitle);
-		pnlSearch.add(txfTitle);
-		pnlSearch.add(btnTitleSearch);
+		pnlFriendsBtns.add(txtFriendsName);
+		pnlFriendsBtns.add(btnFriendsAddFriend);
+		pnlFriendsBtns.add(btnFriendsRemoveFriend);
 		
 		pnlContent = new JPanel();
-		pnlContent.add(pnlAllGames);
-		add(pnlContent, BorderLayout.CENTER);
+		generateAllGamesPanel();
 		
-		if (pnlLogin != null) {
-			remove(pnlLogin);
-		}
+		getContentPane().removeAll();
+		add(pnlButtons, BorderLayout.NORTH);
+		add(pnlContent, BorderLayout.CENTER);
 		
 		validate();
 		repaint();
@@ -265,8 +297,13 @@ public class SolarGUI extends JFrame implements ActionListener //, TableModelLis
 		panel.add(btnAddMovie);
 		pnlAdd.add(panel);
 		
+		// TODO switch to new mode
 		add(pnlAdd, BorderLayout.CENTER);
-		remove(pnlLogin);
+		
+		getContentPane().removeAll();
+		add(pnlButtons, BorderLayout.NORTH);
+		add(pnlContent, BorderLayout.CENTER);
+		
 		validate();
 		repaint();
 	}
@@ -292,13 +329,7 @@ public class SolarGUI extends JFrame implements ActionListener //, TableModelLis
 		} else if (e.getSource() == btnRegister) {
 			loginOrRegister(false);
 		} else if (e.getSource() == btnMyGames) {
-			personalGameList = db.getOwnedGames(username);
-			fillGameGrid(personalGameList, true);
-			pnlContent.removeAll();
 			generateMyGamesPanel();
-			pnlContent.add(pnlMyGames);
-			pnlContent.revalidate();
-			this.repaint();
 		} else if (e.getSource() == btnMyGamesPlay) {
 			int gameId = getIntFromTextField(txtMyGamesGameId);
 			if (gameId != -1) {
@@ -318,18 +349,7 @@ public class SolarGUI extends JFrame implements ActionListener //, TableModelLis
 		} else if (e.getSource() == btnMyGamesRate) {
 			
 		} else if (e.getSource() == btnAllGames) {
-			try {
-				generalGameList = db.getGames();
-			} catch (SQLException e1) {
-				// TODO Auto-generated catch block
-				e1.printStackTrace();
-			}
-			fillGameGrid(generalGameList, false);
-			pnlContent.removeAll();
 			generateAllGamesPanel();
-			pnlContent.add(pnlAllGames);
-			pnlContent.revalidate();
-			this.repaint();
 		} else if (e.getSource() == btnAllGamesView) {
 			
 		} else if (e.getSource() == btnAllGamesBuy) {
@@ -363,12 +383,11 @@ public class SolarGUI extends JFrame implements ActionListener //, TableModelLis
 			String title = txfTitle.getText();
 			if (title.length() > 0) {
 				generalGameList = db.getGames(title);
-				fillGameGrid(generalGameList, false);
+				fillGameGrid(generalGameList);
 				pnlContent.removeAll();
-				generalGameTable = new JTable(generalGameData, columnNames);
-//				generalGameTable.getModel().addTableModelListener(this);
-				generalDataScrollPane = new JScrollPane(generalGameTable);
-				pnlContent.add(generalDataScrollPane);
+				table = new JTable(data, gameColumnNames);
+				scrollPane = new JScrollPane(table);
+				pnlContent.add(scrollPane);
 				pnlContent.revalidate();
 				this.repaint();
 			}
@@ -384,12 +403,48 @@ public class SolarGUI extends JFrame implements ActionListener //, TableModelLis
 			for (int i=0; i<txfField.length; i++) {
 				txfField[i].setText("");
 			}
+		} else if (e.getSource() == btnFriends) {
+			generateFriendsPanel();
+		} else if (e.getSource() == btnFriendsAddFriend) {
+			// TODO check empty string
+			String friendName = txtFriendsName.getText();
+			if (username.equals(friendName)) {
+				JOptionPane.showMessageDialog(null, "Cannot friend yourself.");
+			} else {
+				if (db.userExists(friendName)) {
+					if (db.addFriend(username, friendName)) {
+						JOptionPane.showMessageDialog(null, "Friend added.");
+						generateFriendsPanel();
+					} else {
+						JOptionPane.showMessageDialog(null, "Failed. May already be a friend.");
+					}
+				} else {
+					JOptionPane.showMessageDialog(null, "User does not exist.");
+				}
+			}
+		} else if (e.getSource() == btnFriendsRemoveFriend) {
+			// TODO check empty string
+			String friendName = txtFriendsName.getText();
+			if (friendsList.contains(friendName)) {
+				if (db.removeFriend(username, friendName)) {
+					JOptionPane.showMessageDialog(null, "Friend removed.");
+					generateFriendsPanel();
+				} else {
+					JOptionPane.showMessageDialog(null, "Failed.");
+				}
+			} else {
+				JOptionPane.showMessageDialog(null, "Can't remove a friend who isn't your friend.");
+			}
+		} else if (e.getSource() == btnPurchaseHistory) {
+			generatePurchaseHistoryPanel();
+		} else if (e.getSource() == btnSignOut) {
+			logIn();
 		}
 		
 	}
 	
-	private void fillGameGrid(List<Game> gameList, boolean isPersonal) {
-		Object[][] data = new Object[gameList.size()][columnNames.length];
+	private void fillGameGrid(List<Game> gameList) {
+		data = new Object[gameList.size()][gameColumnNames.length];
 		for (int i=0; i<gameList.size(); i++) {
 			data[i][0] = gameList.get(i).getId();
 			data[i][1] = gameList.get(i).getTitle();
@@ -398,10 +453,30 @@ public class SolarGUI extends JFrame implements ActionListener //, TableModelLis
 			data[i][4] = gameplayTypeList.get(gameList.get(i).getGameplayTypeId());
 			data[i][5] = publisherNameList.get(gameList.get(i).getPublisherId());
 		}
-		if (isPersonal) {
-			personalGameData = data;
-		} else {
-			generalGameData = data;
+	}
+	
+	private void fillFriendsGrid(List<String> friendList) {
+		data = new Object[friendList.size()][friendColumnNames.length];
+		for (int i=0; i<friendList.size(); i++) {
+			data[i][0] = friendList.get(i);
+		}
+	}
+	
+	private void fillTransactionsGrid(List<Transaction> transactionsList) {
+		// make sure owned games list up to date
+		personalGameList = db.getOwnedGames(username);
+		
+		data = new Object[transactionsList.size()][transactionColumnNames.length];
+		for (int i=0; i<transactionsList.size(); i++) {
+			int gameId = transactionsList.get(i).getGameId();
+			Game game = ownedGame(gameId);
+			data[i][0] = transactionsList.get(i).getUsername();
+			data[i][1] = gameId;
+			data[i][2] = game != null ? game.getTitle() : "[Error]";
+			data[i][3] = transactionsList.get(i).getPurchasePrice();
+			data[i][4] = transactionsList.get(i).getPurchaseDate();
+			data[i][5] = game != null ? 
+					publisherNameList.get(game.getPublisherId()) : "[Error]";
 		}
 	}
 	
@@ -429,43 +504,90 @@ public class SolarGUI extends JFrame implements ActionListener //, TableModelLis
 		}
 	}
 	
-	private void initializePersonalGameList(boolean isPlayer) {
-		List<Game> list;
+	private void initializePersonalGameList() {
 		if (isPlayer) {
-			list = db.getOwnedGames(username);
+			personalGameList = db.getOwnedGames(username);
 		} else {
 			// TODO
-			list = null;
+			personalGameList = null;
 		}
-		fillGameGrid(list, true);
 	}
 	
 	private void generateMyGamesPanel() {
-		pnlMyGames = new JPanel(new BorderLayout());
+		personalGameList = db.getOwnedGames(username);
+		fillGameGrid(personalGameList);
 		
-		pnlMyGames.add(pnlMyGamesBtns, BorderLayout.NORTH);
+		pnlContent.removeAll();
+		pnlContent.add(pnlMyGamesBtns, BorderLayout.NORTH);
 		
-		personalGameTable = new JTable(personalGameData, columnNames);
-		personalDataScrollPane = new JScrollPane(personalGameTable);
-		personalGameTable.setEnabled(false);
-		personalGameTable.setAutoCreateRowSorter(true);
-		pnlMyGames.add(personalDataScrollPane, BorderLayout.CENTER);
+		table = new JTable(data, gameColumnNames);
+		scrollPane = new JScrollPane(table);
+		table.setEnabled(false);
+		table.setAutoCreateRowSorter(true);
+		pnlContent.add(scrollPane, BorderLayout.CENTER);
+		
+		pnlContent.revalidate();
+		this.repaint();
 	}
 	
 	private void generateAllGamesPanel() {
-		pnlAllGames = new JPanel(new BorderLayout());
+		try {
+			generalGameList = db.getGames();
+		} catch (SQLException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+			generalGameList = new ArrayList<>();
+		}
+		fillGameGrid(generalGameList);
 		
-		pnlAllGames.add(pnlAllGamesBtns, BorderLayout.NORTH);
+		pnlContent.removeAll();
+		pnlContent.add(pnlAllGamesBtns, BorderLayout.NORTH);
 		
-		generalGameTable = new JTable(generalGameData, columnNames);
-		generalDataScrollPane = new JScrollPane(generalGameTable);
-		generalGameTable.setEnabled(false);
-		generalGameTable.setAutoCreateRowSorter(true);
-		pnlAllGames.add(generalDataScrollPane, BorderLayout.CENTER);
+		table = new JTable(data, gameColumnNames);
+		scrollPane = new JScrollPane(table);
+		table.setEnabled(false);
+		table.setAutoCreateRowSorter(true);
+		pnlContent.add(scrollPane, BorderLayout.CENTER);
+		
+		pnlContent.revalidate();
+		this.repaint();
+	}
+	
+	private void generateFriendsPanel() {
+		friendsList = db.getFriends(username);
+		fillFriendsGrid(friendsList);
+		
+		pnlContent.removeAll();
+		pnlContent.add(pnlFriendsBtns, BorderLayout.NORTH);
+		
+		table = new JTable(data, friendColumnNames);
+		scrollPane = new JScrollPane(table);
+		table.setEnabled(false);
+		table.setAutoCreateRowSorter(true);
+		pnlContent.add(scrollPane, BorderLayout.CENTER);
+		
+		pnlContent.revalidate();
+		this.repaint();
+	}
+	
+	private void generatePurchaseHistoryPanel() {
+		List<Transaction> transactionsList = db.getPlayerTransactions(username);
+		fillTransactionsGrid(transactionsList);
+		
+		pnlContent.removeAll();
+		
+		table = new JTable(data, transactionColumnNames);
+		scrollPane = new JScrollPane(table);
+		table.setEnabled(false);
+		table.setAutoCreateRowSorter(true);
+		pnlContent.add(scrollPane, BorderLayout.CENTER);
+		
+		pnlContent.revalidate();
+		this.repaint();
 	}
 	
 	private Game ownedGame(int gameId) {
-		if (gameId == -1) return null;
+		if (gameId <= -1) return null;
 		Game ownedGame = null;
 		for (Game game: personalGameList) {
 			if (game.getId() == gameId) {
