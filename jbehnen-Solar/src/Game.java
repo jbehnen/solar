@@ -91,6 +91,7 @@ public class Game {
 	 * @return description
 	 */
 	public String getDescription() {
+		if (description == null) description = "";
 		return description;
 	}
 

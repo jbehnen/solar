@@ -42,13 +42,9 @@ public class SolarDB {
 		System.out.println("Connected to database");
 	}
 	
-	public boolean checkUser(String username, String password, boolean isPlayer) {
+	public boolean checkUser(String username, String password) {
 		String sql;
-		if (isPlayer) {
-			sql = "SELECT * FROM jbehnen.PlayerAccount WHERE playerUsername = ? AND playerPassword = ?;";
-		} else {
-			sql = "SELECT * FROM jbehnen.PublisherAccount WHERE publisherName = ? AND publisherPassword = ?;";
-		}
+		sql = "SELECT * FROM jbehnen.PlayerAccount WHERE playerUsername = ? AND playerPassword = ?;";
 		
 		PreparedStatement preparedStatement = null;
 		try {
@@ -64,19 +60,12 @@ public class SolarDB {
 		return false;
 	}
 	
-	public boolean addUser(String username, String password, String email, boolean isPlayer) {
+	public boolean addUser(String username, String password, String email) {
 		String sql;
 		boolean success = true;
-		 if (isPlayer) {
-			 sql = "insert into jbehnen.PlayerAccount values (?, ?, ?); ";
-		 } else {
-			// Insert subquery from http://stackoverflow.com/questions/10644149/insert-into-with-subquery-mysql
-			sql = "insert into jbehnen.PublisherAccount"
-					+ " SELECT nextId, ? as publisherName, ? as publisherEmail, ? as publisherPasswword"
-					+ " FROM (SELECT MAX(publisherId) + 1 'nextId' FROM jbehnen.PublisherAccount) MaximumId; ";
-		 }
-		 PreparedStatement preparedStatement = null;
-		 try {
+		sql = "insert into jbehnen.PlayerAccount values (?, ?, ?); ";
+		PreparedStatement preparedStatement = null;
+		try {
 			preparedStatement = conn.prepareStatement(sql);
 			preparedStatement.setString(1, username);
 			preparedStatement.setString(2, email);
@@ -127,15 +116,15 @@ public class SolarDB {
 	 * @throws SQLException
 	 */
 	public List<Game> getGames() throws SQLException {
-		if (conn == null) {
-			createConnection();
-		}
 		Statement stmt = null;
 		String query = "select gameId, gameTitle, gameDescription, gamePrice, genreId, "
 				+ "gameplayTypeId, publisherId from jbehnen.Game ";
 
 		gameList = new ArrayList<Game>();
 		try {
+			if (conn == null) {
+				createConnection();
+			}
 			stmt = conn.createStatement();
 			ResultSet rs = stmt.executeQuery(query);
 			while (rs.next()) {
@@ -422,6 +411,307 @@ public class SolarDB {
 			e.printStackTrace();
 		} 
 		return transactions;
+	}
+
+	public List<Game> getGameSearchResults(String inputTitle, String inputFriend, 
+			int inputGenreId, int inputGameplayId, int inputOsId, int inputGroupingId) {
+		StringBuilder sqlBuilder = new StringBuilder("select gameId, "
+				+ "gameTitle, gameDescription, gamePrice, genreId, "
+				+ "gameplayTypeId, publisherId from jbehnen.Game where ");
+		
+		boolean anyCondition = false;
+		boolean[] conditions = new boolean[6];
+		
+		if (inputTitle.length() > 0) {
+			sqlBuilder.append("gameTitle LIKE ? ");
+			conditions[0] = true;
+			anyCondition = true;
+		}
+		
+		if (inputFriend.length() > 0) {
+			if (anyCondition) sqlBuilder.append("AND ");
+			sqlBuilder.append("gameId IN (SELECT gameId FROM "
+					+ "jbehnen.PlayerOwnsGame WHERE playerUsername = ?) ");
+			conditions[1] = true;
+			anyCondition = true;
+		}
+		
+		if (inputGenreId >= 0) {
+			if (anyCondition) sqlBuilder.append("AND ");
+			sqlBuilder.append("genreId = ? ");
+			conditions[2] = true;
+			anyCondition = true;
+		}
+		
+		if (inputGameplayId >= 0) {
+			if (anyCondition) sqlBuilder.append("AND ");
+			sqlBuilder.append("gameplayTypeId = ? ");
+			conditions[3] = true;
+			anyCondition = true;
+		}
+		
+		if (inputOsId >= 0) {
+			if (anyCondition) sqlBuilder.append("AND ");
+			sqlBuilder.append("gameId IN (SELECT gameId FROM "
+					+ "jbehnen.GameSupportsOS WHERE "
+					+ "operatingSystemId = ? ");
+			conditions[4] = true;
+			anyCondition = true;
+		}
+		
+		if (inputGroupingId >= 0) {
+			if (anyCondition) sqlBuilder.append("AND ");
+			sqlBuilder.append("gameId IN (SELECT gameId FROM "
+					+ "jbehnen.GameSupportsGrouping WHERE "
+					+ "playerGroupingTypeId = ? ");
+			conditions[5] = true;
+			anyCondition = true;
+		}
+		
+		// If no conditions have been added, add ending to statement
+		boolean condition = false;
+		for (int i = 0; i < conditions.length; i++) {
+			condition |= conditions[i];
+		}
+		if (!condition) {
+			sqlBuilder.append("1 = 1");
+		}
+		
+		sqlBuilder.append(";");
+		String sql = sqlBuilder.toString();
+
+		gameList = new ArrayList<Game>();
+		try {
+			if (conn == null) {
+				createConnection();
+			}
+			PreparedStatement preparedStatement = conn.prepareStatement(sql);
+			int currentBinding = 1;
+			if (conditions[0]) {
+				preparedStatement.setString(currentBinding++, "%" + inputTitle + "%");
+			}
+			if (conditions[1]) {
+				preparedStatement.setString(currentBinding++, inputFriend);
+			}
+			if (conditions[2]) {
+				preparedStatement.setInt(currentBinding++, inputGenreId);
+			}
+			if (conditions[3]) {
+				preparedStatement.setInt(currentBinding++, inputGameplayId);
+			}
+			if (conditions[4]) {
+				preparedStatement.setInt(currentBinding++, inputOsId);
+			}
+			if (conditions[5]) {
+				preparedStatement.setInt(currentBinding++, inputGroupingId);
+			}
+			System.out.println(preparedStatement.toString());
+			ResultSet rs = preparedStatement.executeQuery();
+			while (rs.next()) {
+				int id = rs.getInt("gameId");
+				String title = rs.getString("gameTitle");
+				String description = rs.getString("gameDescription");
+				BigDecimal gamePrice = rs.getBigDecimal("gamePrice");
+				int genreId = rs.getInt("genreId");
+				int gameplayTypeId = rs.getInt("gameplayTypeId");
+				int publisherId = rs.getInt("genreId");
+				Game game = new Game(id, title, description, gamePrice, genreId,
+						gameplayTypeId, publisherId);
+				gameList.add(game);
+			}
+		} catch (SQLException e) {
+			System.out.println(e);
+			e.printStackTrace();
+		}
+		return gameList;
+	}
+	
+	public List<String> getOperatingSystems(int gameId) {
+		String sql = "select operatingSystemName from jbehnen.OperatingSystem "
+				+ "NATURAL JOIN jbehnen.GameSupportsOS where gameId = ?";
+
+		List<String> operatingSystems = new ArrayList<String>();
+		try {
+			if (conn == null) {
+				createConnection();
+			}
+			PreparedStatement preparedStatement = null;
+			preparedStatement = conn.prepareStatement(sql);
+			preparedStatement.setInt(1, gameId);
+			ResultSet rs = preparedStatement.executeQuery();
+			while (rs.next()) {
+				String os = rs.getString("operatingSystemName");
+				operatingSystems.add(os);
+			}
+		} catch (SQLException e) {
+			System.out.println(e);
+			e.printStackTrace();
+		}
+		return operatingSystems;
+	}
+	
+	public List<String> getPlayerGroupingTypes(int gameId) {
+		String sql = "select playerGroupingTypeName from jbehnen.PlayerGroupingType "
+				+ "NATURAL JOIN jbehnen.GameSupportsGrouping where gameId = ?";
+
+		List<String> groupingTypes = new ArrayList<String>();
+		try {
+			if (conn == null) {
+				createConnection();
+			}
+			PreparedStatement preparedStatement = null;
+			preparedStatement = conn.prepareStatement(sql);
+			preparedStatement.setInt(1, gameId);
+			ResultSet rs = preparedStatement.executeQuery();
+			while (rs.next()) {
+				String type = rs.getString("playerGroupingTypeName");
+				groupingTypes.add(type);
+			}
+		} catch (SQLException e) {
+			System.out.println(e);
+			e.printStackTrace();
+		}
+		return groupingTypes;
+	}
+	
+	public double getAverageRating(int gameId) {
+		String sql = "select AVG(gameRating) `avgRating` from jbehnen.PlayerRatesGame "
+				+ "where gameId = ?";
+
+		double rating = -1;
+		try {
+			if (conn == null) {
+				createConnection();
+			}
+			PreparedStatement preparedStatement = null;
+			preparedStatement = conn.prepareStatement(sql);
+			preparedStatement.setInt(1, gameId);
+			ResultSet rs = preparedStatement.executeQuery();
+			if (rs.next()) {
+				rating = rs.getInt("avgRating");
+			}
+		} catch (SQLException e) {
+			System.out.println(e);
+			e.printStackTrace();
+		}
+		return rating;
+	}
+	
+	public int getNumOfRatings(int gameId) {
+		String sql = "select COUNT(*) `ratingCount` from jbehnen.PlayerRatesGame "
+				+ "where gameId = ?";
+
+		int count = -1;
+		try {
+			if (conn == null) {
+				createConnection();
+			}
+			PreparedStatement preparedStatement = null;
+			preparedStatement = conn.prepareStatement(sql);
+			preparedStatement.setInt(1, gameId);
+			ResultSet rs = preparedStatement.executeQuery();
+			if (rs.next()) {
+				count = rs.getInt("ratingCount");
+			}
+		} catch (SQLException e) {
+			System.out.println(e);
+			e.printStackTrace();
+		}
+		return count;
+	}
+	
+	public int getUserRating(String username, int gameId) {
+		String sql = "select gameRating from jbehnen.PlayerRatesGame "
+				+ "where playerUsername = ? AND gameId = ?;";
+
+		int rating = -1;
+		try {
+			if (conn == null) {
+				createConnection();
+			}
+			PreparedStatement preparedStatement = null;
+			preparedStatement = conn.prepareStatement(sql);
+			preparedStatement.setString(1, username);
+			preparedStatement.setInt(2, gameId);
+			ResultSet rs = preparedStatement.executeQuery();
+			if (rs.next()) {
+				rating = rs.getInt("gameRating");
+			}
+		} catch (SQLException e) {
+			System.out.println(e);
+			e.printStackTrace();
+		}
+		return rating;
+	}
+	
+	public boolean addUserRating(String username, int gameId, int rating) {
+		String sql = "insert into jbehnen.PlayerRatesGame values (?, ?, ?);";
+
+		boolean success = true;
+		try {
+			if (conn == null) {
+				createConnection();
+			}
+			PreparedStatement preparedStatement = null;
+			preparedStatement = conn.prepareStatement(sql);
+			preparedStatement.setString(1, username);
+			preparedStatement.setInt(2, gameId);
+			preparedStatement.setInt(3, rating);
+			preparedStatement.executeUpdate();
+
+		} catch (SQLException e) {
+			System.out.println(e);
+			e.printStackTrace();
+			success = false;
+		}
+		return success;
+	}
+	
+	public boolean updateUserRating(String username, int gameId, int rating) {
+		String sql = "update jbehnen.PlayerRatesGame set gameRating = ? "
+				+ "where playerUsername = ? and gameId = ?;";
+
+		boolean success = true;
+		try {
+			if (conn == null) {
+				createConnection();
+			}
+			PreparedStatement preparedStatement = null;
+			preparedStatement = conn.prepareStatement(sql);
+			preparedStatement.setInt(1, rating);
+			preparedStatement.setString(2, username);
+			preparedStatement.setInt(3, gameId);
+			preparedStatement.executeUpdate();
+
+		} catch (SQLException e) {
+			System.out.println(e);
+			e.printStackTrace();
+			success = false;
+		}
+		return success;
+	}
+	
+	public boolean deleteUserRating(String username, int gameId) {
+		String sql = "delete from jbehnen.PlayerRatesGame "
+				+ "where playerUsername = ? and gameId = ?;";
+
+		boolean success = true;
+		try {
+			if (conn == null) {
+				createConnection();
+			}
+			PreparedStatement preparedStatement = null;
+			preparedStatement = conn.prepareStatement(sql);
+			preparedStatement.setString(1, username);
+			preparedStatement.setInt(2, gameId);
+			preparedStatement.executeUpdate();
+
+		} catch (SQLException e) {
+			System.out.println(e);
+			e.printStackTrace();
+			success = false;
+		}
+		return success;
 	}
 	
 }
