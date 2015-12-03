@@ -714,4 +714,50 @@ public class SolarDB {
 		return success;
 	}
 	
+	public boolean updatePassword(String username, String password) {
+		String sql = "update jbehnen.PlayerAccount set playerPassword = ? "
+				+ "where playerUsername = ?;";
+
+		boolean success = true;
+		try {
+			if (conn == null) {
+				createConnection();
+			}
+			PreparedStatement preparedStatement = null;
+			preparedStatement = conn.prepareStatement(sql);
+			preparedStatement.setString(1, password);
+			preparedStatement.setString(2, username);
+			preparedStatement.executeUpdate();
+
+		} catch (SQLException e) {
+			System.out.println(e);
+			e.printStackTrace();
+			success = false;
+		}
+		return success;
+	}
+	
+	public boolean updateEmail(String username, String email) {
+		String sql = "update jbehnen.PlayerAccount set playerEmail = ? "
+				+ "where playerUsername = ?;";
+
+		boolean success = true;
+		try {
+			if (conn == null) {
+				createConnection();
+			}
+			PreparedStatement preparedStatement = null;
+			preparedStatement = conn.prepareStatement(sql);
+			preparedStatement.setString(1, email);
+			preparedStatement.setString(2, username);
+			preparedStatement.executeUpdate();
+
+		} catch (SQLException e) {
+			System.out.println(e);
+			e.printStackTrace();
+			success = false;
+		}
+		return success;
+	}
+	
 }

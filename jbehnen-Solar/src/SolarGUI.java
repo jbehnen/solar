@@ -26,7 +26,7 @@ public class SolarGUI extends JFrame implements ActionListener //, TableModelLis
 	private static final Format integerFormat = NumberFormat.getIntegerInstance();
 	private static final Format currencyFormat = NumberFormat.getCurrencyInstance();
 	
-	private JButton btnMyGames, btnAllGames, btnSearch, btnAdd, btnFriends, btnPurchaseHistory, btnAccount, btnSignOut;
+	private JButton btnMyGames, btnAllGames, btnSearch, btnFriends, btnPurchaseHistory, btnAccount, btnSignOut;
 	private JPanel pnlLogin, pnlButtons, pnlContent;
 	private SolarDB db;
 	private List<Game> personalGameList, generalGameList;
@@ -93,12 +93,12 @@ public class SolarGUI extends JFrame implements ActionListener //, TableModelLis
 	private JTextField txtFriendsName;
 	private JButton btnFriendsAddFriend, btnFriendsRemoveFriend;
 	
+	private JPanel pnlAccount;
+	private JTextField[] accountFields;
+	private JButton btnAccountPassword, btnAccountEmail;
+	
 	private JDialog gameDialog;
 	private JLabel[] lblGameViewContent;
-	
-	private JPanel pnlAdd;
-	private JLabel[] txfLabel = new JLabel[7];
-	private JTextField[] txfField = new JTextField[7];
 
 	private String username;
 	
@@ -111,11 +111,7 @@ public class SolarGUI extends JFrame implements ActionListener //, TableModelLis
 		db = new SolarDB();
 		updateGeneralData();
 		
-		// TODO revert
-		// logIn();
-		
-		username = "user";
-		createComponents();
+		logIn();
 		
 		setVisible(true);
 		setSize(750, 600);
@@ -208,7 +204,7 @@ public class SolarGUI extends JFrame implements ActionListener //, TableModelLis
 		JPanel pnlSearchInternal = new JPanel();
 		pnlSearchInternal.setLayout(new BoxLayout(pnlSearchInternal, BoxLayout.Y_AXIS));
 		pnlSearch.add(pnlSearchInternal);
-		lblTitle = new JLabel("Enter Title: ");
+		lblTitle = new JLabel("Title (optional): ");
 		txfTitle = new JTextField(25);
 		btnSearchAction = new JButton("Search");
 		btnSearchAction.addActionListener(this);
@@ -263,6 +259,31 @@ public class SolarGUI extends JFrame implements ActionListener //, TableModelLis
 		pnlFriendsBtns.add(btnFriendsAddFriend);
 		pnlFriendsBtns.add(btnFriendsRemoveFriend);
 		
+		// Account Panel
+		pnlAccount = new JPanel();
+		JPanel pnlAccountInternal = new JPanel();
+		pnlAccountInternal.setLayout(new BoxLayout(pnlAccountInternal, BoxLayout.Y_AXIS));
+		pnlAccount.add(pnlAccountInternal);
+		String accountLabelNames[] = {"Password: ", "New Password: ",
+				"Confirm password :", "Email: "};
+		accountFields = new JTextField[accountLabelNames.length];
+		btnAccountPassword = new JButton("Change password");
+		btnAccountPassword.addActionListener(this);
+		btnAccountEmail = new JButton("Change email");
+		btnAccountEmail.addActionListener(this);
+		for (int i=0; i<accountLabelNames.length; i++) {
+			JPanel panel = new JPanel();
+			JLabel accountLabel = new JLabel(accountLabelNames[i]);
+			accountFields[i] = new JTextField(25);
+			panel.add(accountLabel);
+			panel.add(accountFields[i]);
+			pnlAccountInternal.add(panel);
+			if (i == 2) {
+				pnlAccountInternal.add(btnAccountPassword);
+			}
+		}
+		pnlAccountInternal.add(btnAccountEmail);
+		
 		// Game Overview Dialog
 		gameDialog = new JDialog(this);
 		Container gameDialogContent = gameDialog.getContentPane();
@@ -275,14 +296,12 @@ public class SolarGUI extends JFrame implements ActionListener //, TableModelLis
 		Font descriptionFont = new Font("Dialog", Font.ITALIC, 12);
 		lblGameViewContent = new JLabel[gameViewLabelNames.length];
 		for (int i=0; i<gameViewLabelNames.length; i++) {
-			//JPanel panel = new JPanel();
 			JLabel lblGameViewLabel = new JLabel(gameViewLabelNames[i]);
 			lblGameViewLabel.setFont(labelFont);
 			lblGameViewContent[i] = new JLabel();
 			lblGameViewContent[i].setFont(descriptionFont);
 			gameDialogContent.add(lblGameViewLabel);
 			gameDialogContent.add(lblGameViewContent[i]);
-			//gameDialogContent.add(panel);
 		}
 			
 		// Final initialization
@@ -381,6 +400,8 @@ public class SolarGUI extends JFrame implements ActionListener //, TableModelLis
 					boolean success = db.buyGame(username, game);
 					if (success) {
 						JOptionPane.showMessageDialog(null, "Purchase successful.");
+						// TODO: make targeted
+						generateAllGamesPanel();
 					} else {
 						JOptionPane.showMessageDialog(null, "Purchase failed. You "
 								+ "may already own this game.");
@@ -391,11 +412,6 @@ public class SolarGUI extends JFrame implements ActionListener //, TableModelLis
 			updateSearchPanel();
 			pnlContent.removeAll();
 			pnlContent.add(pnlSearch);
-			pnlContent.revalidate();
-			this.repaint();
-		} else if (e.getSource() == btnAdd) {
-			pnlContent.removeAll();
-			pnlContent.add(pnlAdd);
 			pnlContent.revalidate();
 			this.repaint();
 		} else if (e.getSource() == btnSearchAction) {
@@ -449,6 +465,49 @@ public class SolarGUI extends JFrame implements ActionListener //, TableModelLis
 			}
 		} else if (e.getSource() == btnPurchaseHistory) {
 			generatePurchaseHistoryPanel();
+		} else if (e.getSource() == btnAccount) {
+			pnlContent.removeAll();
+			pnlContent.add(pnlAccount);
+			pnlContent.revalidate();
+			this.repaint();
+		} else if (e.getSource() == btnAccountPassword) {
+			String currentPassword = Helper.encryptString(accountFields[0].getText());
+			boolean permission = db.checkUser(username, currentPassword);
+			if (permission) {
+				String newPassword = accountFields[1].getText();
+				String confirmPassword = accountFields[2].getText();
+				if (newPassword.length() > 6 && newPassword.equals(confirmPassword)) {
+					boolean success = db.updatePassword(username, Helper.encryptString(newPassword));
+					if (success) {
+						JOptionPane.showMessageDialog(null, "Password successfully changed.");
+					} else {
+						JOptionPane.showMessageDialog(null, "Password change failed. Please try again.");
+					}
+				} else {
+					JOptionPane.showMessageDialog(null, "Passwords must match and be at least 6 characters long.");
+				}
+			} else {
+				JOptionPane.showMessageDialog(null, "You must enter the correct current password for your account.");
+			}
+		} else if (e.getSource() == btnAccountEmail) {
+			String currentPassword = Helper.encryptString(accountFields[0].getText());
+			boolean permission = db.checkUser(username, currentPassword);
+			if (permission) {
+				String newEmail = accountFields[3].getText();
+				// basic validity test
+				if (newEmail.contains("@")) {
+					boolean success = db.updateEmail(username, newEmail);
+					if (success) {
+						JOptionPane.showMessageDialog(null, "Email successfully changed.");
+					} else {
+						JOptionPane.showMessageDialog(null, "Email change failed. Please try again.");
+					}
+				} else {
+					JOptionPane.showMessageDialog(null, "Please enter a valid email.");
+				}
+			} else {
+				JOptionPane.showMessageDialog(null, "You must enter the correct current password for your account.");
+			}
 		} else if (e.getSource() == btnSignOut) {
 			logIn();
 		}
